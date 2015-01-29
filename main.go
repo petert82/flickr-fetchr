@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
-	"github.com/petert82/flickr-fetchr/api"
-	// "io/ioutil"
 	"errors"
 	"flag"
+	"fmt"
+	"github.com/petert82/flickr-fetchr/api"
+	"github.com/petert82/flickr-fetchr/savr"
 	"os"
 )
 
@@ -58,14 +58,15 @@ func main() {
 		getPage++
 	}
 
-	// for _, v := range photos {
-	// 	fmt.Println(v.OriginalUrl())
-	// 	fmt.Println(v.LargeThumbnailUrl())
-	// 	fmt.Println(v.SmallThumbnailUrl())
-	// }
-	photo, err := api.GetPhotoInfo(photos[0].Id, photos[0].Secret, apiKey)
-	check(err)
-	fmt.Printf("%+v", photo)
+	details := make([]api.FullPhotoer, 5)
+	for i := 0; i < 5; i++ {
+		var err error
+		details[i], err = api.GetPhotoInfo(photos[i].Id(), photos[i].Secret, apiKey)
+		fmt.Println("Got details for photo:", details[i].Id())
+		check(err)
+	}
+
+	savr.Save(details, "photos.json")
 
 	fmt.Printf("Got %v photos\n", len(photos))
 }
