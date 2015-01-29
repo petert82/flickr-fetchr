@@ -75,7 +75,7 @@ type PhotoSummary struct {
 }
 
 type PhotoCommon struct {
-	Id             string
+	JsonId         string `json:"id"`
 	Secret         string
 	Server         string
 	Farm           int
@@ -150,6 +150,7 @@ type contentString struct {
 }
 
 type Photoer interface {
+	Id() string
 	// Url to large format thumbnail (150 x 150)
 	LargeThumbnailUrl() string
 	// Url to small format thumbnail (75 x 75)
@@ -160,19 +161,28 @@ type Photoer interface {
 	Title() string
 }
 
+type FullPhotoer interface {
+	Photoer
+	Description() string
+}
+
+func (p PhotoCommon) Id() string {
+	return p.JsonId
+}
+
 func (p PhotoCommon) LargeThumbnailUrl() string {
 	// "http://farm"+photo.farm+".staticflickr.com/"+photo.server+"/"+photo.id+"_"+photo.secret+"_q.jpg"
-	return fmt.Sprintf(thumbnailUrl, p.Farm, p.Server, p.Id, p.Secret, thumbnailSizeL)
+	return fmt.Sprintf(thumbnailUrl, p.Farm, p.Server, p.JsonId, p.Secret, thumbnailSizeL)
 }
 
 func (p PhotoCommon) SmallThumbnailUrl() string {
 	// "http://farm"+photo.farm+".staticflickr.com/"+photo.server+"/"+photo.id+"_"+photo.secret+"_q.jpg"
-	return fmt.Sprintf(thumbnailUrl, p.Farm, p.Server, p.Id, p.Secret, thumbnailSizeS)
+	return fmt.Sprintf(thumbnailUrl, p.Farm, p.Server, p.JsonId, p.Secret, thumbnailSizeS)
 }
 
 func (p PhotoCommon) OriginalUrl() string {
 	// 'http://farm'+photo.farm+'.staticflickr.com/'+photo.server+'/'+photo.id+'_'+photo.originalSecret+'_o.'+photo.originalFormat
-	return fmt.Sprintf(originalUrl, p.Farm, p.Server, p.Id, p.OriginalSecret, p.OriginalFormat)
+	return fmt.Sprintf(originalUrl, p.Farm, p.Server, p.JsonId, p.OriginalSecret, p.OriginalFormat)
 }
 
 func (p PhotoSummary) Title() string {
@@ -181,4 +191,8 @@ func (p PhotoSummary) Title() string {
 
 func (p PhotoInfo) Title() string {
 	return p.JsonTitle.Content
+}
+
+func (p PhotoInfo) Description() string {
+	return p.JsonDescription.Content
 }
