@@ -10,13 +10,15 @@ import (
 )
 
 var (
-	apiKey string
-	userId string
+	apiKey     string
+	userId     string
+	outputFile string
 )
 
 func init() {
 	flag.StringVar(&apiKey, "api-key", "", "Flickr API key")
 	flag.StringVar(&userId, "user-id", "", "Flickr user ID")
+	flag.StringVar(&outputFile, "output-file", "", "File to save photo JSON into")
 	flag.Parse()
 }
 
@@ -36,6 +38,10 @@ func checkOptions() error {
 
 	if len(userId) < 1 {
 		return errors.New("user-id option is missing")
+	}
+
+	if len(outputFile) < 1 {
+		return errors.New("output-file option is missing")
 	}
 
 	return nil
@@ -103,7 +109,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	f, err := os.Create("photos.json")
+	f, err := os.Create(outputFile)
 	check(err)
 	defer f.Close()
 
