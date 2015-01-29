@@ -3,7 +3,7 @@ package savr
 import (
 	"encoding/json"
 	"github.com/petert82/flickr-fetchr/api"
-	"os"
+	"io"
 )
 
 type saveablePhoto struct {
@@ -12,34 +12,22 @@ type saveablePhoto struct {
 	Urls        map[string]string `json:"urls"`
 }
 
-func Save(photos []api.FullPhotoer, file string) error {
-	jsonPhotos := make([]saveablePhoto, len(photos))
-
-	for i, p := range photos {
-		jsonPhotos[i] = saveablePhoto{
-			Title:       p.Title(),
-			Description: p.Description(),
-			Urls: map[string]string{
-				"original":   p.OriginalUrl(),
-				"thumbnailL": p.LargeThumbnailUrl(),
-				"thumbnailS": p.SmallThumbnailUrl(),
-			},
-		}
+func Save(p api.FullPhotoer, w io.Writer) error {
+	jsonPhoto := saveablePhoto{
+		Title:       p.Title(),
+		Description: p.Description(),
+		Urls: map[string]string{
+			"original":   p.OriginalUrl(),
+			"thumbnailL": p.LargeThumbnailUrl(),
+			"thumbnailS": p.SmallThumbnailUrl(),
+		},
 	}
 
-	f, err := os.Create(file)
+	enc := json.NewEncoder(w)
+	err := enc.Encode(jsonPhoto)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-
-	enc := json.NewEncoder(f)
-	err = enc.Encode(jsonPhotos)
-	if err != nil {
-		return err
-	}
-
-	f.Sync()
 
 	return nil
 }
