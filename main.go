@@ -20,6 +20,7 @@ func init() {
 	flag.Parse()
 }
 
+// check just dies on error
 func check(e error) {
 	if e != nil {
 		fmt.Println(e)
@@ -27,6 +28,7 @@ func check(e error) {
 	}
 }
 
+// checkOptions checks all required command line options were provided
 func checkOptions() error {
 	if len(apiKey) < 1 {
 		return errors.New("api-key option is missing")
@@ -39,16 +41,17 @@ func checkOptions() error {
 	return nil
 }
 
-func main() {
-	check(checkOptions())
-
-	fmt.Println("Fetching photo data from Flickr")
+// getPhotoList gets a list of photo-summary data for the user's whole
+// photostream
+func getPhotoList() ([]api.PhotoSummary, error) {
 	getPage := 1
 	var ps []api.PhotoSummary
 
 	for {
 		p, err := api.GetPhotoSearchPage(getPage, apiKey, userId)
-		check(err)
+		if err != nil {
+			return ps, err
+		}
 		ps = append(ps, p.Photos...)
 		fmt.Printf("Got page %v of %v photos\n", getPage, len(p.Photos))
 
@@ -58,7 +61,44 @@ func main() {
 		getPage++
 	}
 
-	if len(ps) == 0 {
+	return ps, nil
+}
+
+// saveWorker receives photo info on the given channel and saves it to the given
+// file
+func saveWorker(photos <-chan api.FullPhotoer, f *os.File, done chan<- bool) {
+	for p := range photos {
+		err := savr.Save(p, f)
+		check(err)
+		// Move back to erase newline added by savr.Save
+		_, err = f.Seek(-1, os.SEEK_CUR)
+		check(err)
+		_, err = f.WriteString(",")
+		check(err)
+		fmt.Println("Saved details for photo: ", p.Id())
+	}
+	done <- true
+}
+
+// photoInfoWorker receives photo summaries on the given channel, gets full
+// photo info from Flickr and passes it to the saveQueue
+func photoInfoWorker(summaries <-chan api.PhotoSummary, saveQueue chan<- api.FullPhotoer, done chan<- bool) {
+	for s := range summaries {
+		p, err := api.GetPhotoInfo(s.Id(), s.Secret, apiKey)
+		check(err)
+		fmt.Println("Got details for photo:", p.Id())
+
+		saveQueue <- p
+	}
+	done <- true
+}
+
+func main() {
+	check(checkOptions())
+
+	fmt.Println("Fetching photo data from Flickr")
+	photos, err := getPhotoList()
+	if len(photos) == 0 {
 		fmt.Println("Got no photos")
 		os.Exit(0)
 	}
@@ -73,36 +113,33 @@ func main() {
 	check(err)
 
 	// Create a separate goroutine for writing photo details to our output file
-	queue := make(chan api.FullPhotoer, 10)
-	done := make(chan bool)
-	go func() {
-		for p := range queue {
-			err := savr.Save(p, f)
-			check(err)
-			// Move back to erase newline added by savr.Save
-			_, err = f.Seek(-1, os.SEEK_CUR)
-			check(err)
-			_, err = f.WriteString(",")
-			check(err)
-			fmt.Println("Saved details for photo: ", p.Id())
-		}
-		done <- true
-	}()
+	saveQueue := make(chan api.FullPhotoer, 10)
+	saveDone := make(chan bool)
+	go saveWorker(saveQueue, f, saveDone)
 
-	// Get details of all the photos in our photostream and pass them to the
-	// queue to be saved
-	for i := 0; i < 5; i++ {
-		p, err := api.GetPhotoInfo(ps[i].Id(), ps[i].Secret, apiKey)
-		check(err)
-		fmt.Println("Got details for photo:", p.Id())
-
-		queue <- p
+	// Create some workers for fetching our photo details
+	fetcherCount := 20
+	fetchQueue := make(chan api.PhotoSummary, 500)
+	fetchDone := make(chan bool, fetcherCount)
+	for w := 1; w <= fetcherCount; w++ {
+		go photoInfoWorker(fetchQueue, saveQueue, fetchDone)
 	}
 
-	close(queue)
-	<-done
+	// Send all our photo summaries to the photoInfoWorkers so they can fetch
+	// the full details and pass them to the saveQueue
+	for _, p := range photos {
+		fetchQueue <- p
+	}
+	close(fetchQueue)
+	// Wait for all our fetchers to finish
+	for w := 1; w <= fetcherCount; w++ {
+		<-fetchDone
+	}
+	// Wait for saving to finish
+	close(saveQueue)
+	<-saveDone
 
-	// Get rid of trailing comma and and close our JSON array
+	// Get rid of trailing comma and, close our JSON array and sync to disk
 	_, err = f.Seek(-1, os.SEEK_CUR)
 	check(err)
 	_, err = f.WriteString("]\n")
@@ -110,5 +147,5 @@ func main() {
 	err = f.Sync()
 	check(err)
 
-	fmt.Printf("Saved details for %v photos\n", len(ps))
+	fmt.Printf("Saved details for %v photos\n", len(photos))
 }
