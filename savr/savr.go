@@ -7,6 +7,7 @@ import (
 )
 
 type saveablePhoto struct {
+	Id          string            `json:"id"`
 	Title       string            `json:"title"`
 	Description string            `json:"description"`
 	Urls        map[string]string `json:"urls"`
@@ -14,6 +15,7 @@ type saveablePhoto struct {
 
 func Save(p api.FullPhotoer, w io.Writer) error {
 	jsonPhoto := saveablePhoto{
+		Id:          p.Id(),
 		Title:       p.Title(),
 		Description: p.Description(),
 		Urls: map[string]string{
