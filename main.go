@@ -91,7 +91,10 @@ func saveWorker(photos <-chan api.FullPhotoer, f *os.File, done chan<- bool) {
 func photoInfoWorker(summaries <-chan api.PhotoSummary, saveQueue chan<- api.FullPhotoer, done chan<- bool) {
 	for s := range summaries {
 		p, err := api.GetPhotoInfo(s.Id(), s.Secret, apiKey)
-		check(err)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
 		fmt.Println("Got details for photo:", p.Id())
 
 		saveQueue <- p
